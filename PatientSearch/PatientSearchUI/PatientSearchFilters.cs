@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -28,7 +29,7 @@ namespace PatientSearch.PatientSearchUI
             get { return _firstNameFilter; }
             set { SetProperty(ref _firstNameFilter, value); }
         }
-        public DateTime? DobFilter
+        public DateTime? DOBFilter
         {
             get { return _dobFilter; }
             set { SetProperty(ref _dobFilter, value); }
@@ -44,7 +45,7 @@ namespace PatientSearch.PatientSearchUI
             this.LastNameFilter = null;
             this.FirstNameFilter = null;
             this.MrNumberFilter = null;
-            this.DobFilter = null;
+            this.DOBFilter = null;
         }
 
         public List<string> GetActiveFilters()
@@ -75,6 +76,15 @@ namespace PatientSearch.PatientSearchUI
             var _leftInput = leftInput;
             var _rightInput = rightInput;
             MethodInfo _methodInfo = typeof(string).GetMethod("StartsWith", new Type[] { typeof(string) });
+            Expression _output = Expression.Call(_leftInput, _methodInfo, _rightInput);
+            return _output;
+        }
+
+        private Expression EqualsExpression(Expression leftInput, Expression rightInput)
+        {
+            var _leftInput = leftInput;
+            var _rightInput = rightInput;
+            MethodInfo _methodInfo = typeof(string).GetMethod("Equals", new Type[] { typeof(string) });
             Expression _output = Expression.Call(_leftInput, _methodInfo, _rightInput);
             return _output;
         }
@@ -120,8 +130,23 @@ namespace PatientSearch.PatientSearchUI
             foreach (string filter in _activeFilters)
             {
                 mod = filter.Replace("Filter", "");
-                var _constparam2 = Expression.Constant(this.GetType().GetProperty(filter).GetValue(this,null));
-                _precursor = WhereCallAppender(_queryableData, StartsWithExpression(ToUpperExpression(Expression.Property(_parameter, mod)), ToUpperExpression(_constparam2)), _precursor,_parameter);
+
+                if (this.GetType().GetProperty(filter).GetValue(this, null) is DateTime)
+                {
+                    var rightSide = Expression.Constant(((DateTime)this.GetType().GetProperty(filter).GetValue(this, null)).ToString("dd/MM/yyyy"));
+                    MethodInfo mi = typeof(DateTime).GetMethod("ToString", new Type[] { typeof(string) });
+                    var leftSide = Expression.Call(Expression.Convert(Expression.Property(_parameter, mod),typeof(DateTime)), mi, Expression.Constant("dd/MM/yyyy"));
+
+                    _precursor = WhereCallAppender(_queryableData, EqualsExpression(leftSide, rightSide), _precursor, _parameter);
+                }
+                else if (this.GetType().GetProperty(filter).GetValue(this, null) is string)
+                {
+                    var _constparam2 = Expression.Constant(this.GetType().GetProperty(filter).GetValue(this, null));
+                    _precursor = WhereCallAppender(_queryableData, StartsWithExpression(ToUpperExpression(Expression.Property(_parameter, mod)), ToUpperExpression(_constparam2)), _precursor, _parameter);
+                }
+                
+                
+                
             }
 
             return (MethodCallExpression)_precursor;
